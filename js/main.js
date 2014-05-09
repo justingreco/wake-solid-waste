@@ -3,11 +3,12 @@ function findNearest(latlng) {
   var distance = 0,
     closest = null;
   $(geojson.getLayers()).each(function(i, l) {
+    var coords = l.feature.geometry.coordinates.reverse();
     if (i === 0) {
-      distance = latlng.distanceTo(l.feature.geometry.coordinates);
+      distance = latlng.distanceTo(coords);
     }
-    if (latlng.distanceTo(l.feature.geometry.coordinates) < distance) {
-      distance = latlng.distanceTo(l.feature.geometry.coordinates);
+    if (latlng.distanceTo(coords) < distance) {
+      distance = latlng.distanceTo(coords);
       closest = l;
     }
   });
