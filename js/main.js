@@ -1,4 +1,4 @@
-var map, geojson, locationGroup;
+var map, geojson, locationGroup, materials, point;
 function addLocationToMap(latlng) {
 		var icon = L.icon({
 			iconUrl: 'img/location.png',
@@ -10,8 +10,9 @@ function addLocationToMap(latlng) {
 
 function getMaterials () {
   $.getJSON("materials.json", function (data) {
+		materials = data;
     $(data).each(function (i, mat) {
-      $("select").append("<option>"+mat.Type+"</option>");
+			var option = $("<option>"+mat.Type+"</option>").appendTo("select");
     });
   });
 }
@@ -32,8 +33,9 @@ function mapProperty (pin) {
 	.done(function(data) {
 		if (data.results.length > 0) {
 			//parcelGraphic.clearLayers();
-			var geom = data.results[0].geometry;
-			//agsGeometry = geom;
+			var geom = data.results[0].geometry,
+					poly = L.multiPolygon([]),
+					latlngs = [];
 			$(geom.rings).each(function (i, r) {
 				var ring = [];
 				$(r).each(function(j, p) {
@@ -41,13 +43,11 @@ function mapProperty (pin) {
 					ring.push({lon:p[0], lat:p[1]})
 
 				});
-				var poly = L.polygon(ring);//.addTo(parcelGraphic);
-				map.fitBounds(poly.getBounds());
-				geometry = poly;
-        findNearest(poly.getBounds().getCenter());
-        addLocationToMap(poly.getBounds().getCenter());
+				latlngs.push(ring);
 			});
-			//checkSelectedValue(account);
+			poly.setLatLngs(latlngs);
+			findNearest(poly.getBounds().getCenter());
+			addLocationToMap(poly.getBounds().getCenter());
 		}
 	});
 }
@@ -79,26 +79,61 @@ function setAddressSearch () {
 		searchByAddress(datum.value, dataset);
 	});;
 }
+
+function getPlaceTypes () {
+	var material = $("select option:selected").val(),
+		list = [];
+	var matches = $(materials).filter(function () {
+		return this.Type === material;
+	});
+	if (matches.length > 0) {
+		if (matches[0].convenience) {
+			list.push("convenience");
+		}
+		if (matches[0].multimaterial) {
+			list.push("multimaterial");
+		}
+		if (matches[0].household) {
+			list.push("household");
+		}
+		if (matches[0].municipal) {
+			list.push("municipal");
+		}
+	}
+	return list;
+}
+
 function findNearest(latlng) {
-  var distance = 0,
-    closest = null;
+
+  var placeTypes = getPlaceTypes(),
+		distance = 0,
+    closest = null,
+		cnt = 0;
+	point = latlng;
   $(geojson.getLayers()).each(function(i, l) {
-    var coords = L.latLng(l.feature.geometry.coordinates[1], l.feature.geometry.coordinates[0])//l.feature.geometry.coordinates.reverse();
-    if (i === 0) {
-      distance = latlng.distanceTo(coords);
-    }
-    if (latlng.distanceTo(coords) < distance) {
-      distance = latlng.distanceTo(coords);
-      closest = l;
-    }
+		if ($.inArray(l.feature.properties.category, placeTypes) > -1) {
+			var coords = L.latLng(l.feature.geometry.coordinates[1], l.feature.geometry.coordinates[0])//l.feature.geometry.coordinates.reverse();
+			if (cnt === 0) {
+				distance = latlng.distanceTo(coords);
+				closest = l;
+			}
+			if (latlng.distanceTo(coords) < distance) {
+				distance = latlng.distanceTo(coords);
+				closest = l;
+			}
+			cnt += 1;
+		}
   });
   var toLocation = L.latLng(closest.feature.geometry.coordinates[1], closest.feature.geometry.coordinates[0]);
   //var toLocation = closest.feature.geometry.coordinates.reverse();
   //map.setView(closest.feature.geometry.coordinates.reverse(), 16);
-  map.fitBounds(L.polyline([latlng, toLocation]).getBounds());
+  map.fitBounds([latlng, toLocation], {padding: [100,100]});
   var dirLink = "https://www.google.com/maps/dir/"+latlng.lat+","+latlng.lng+"/"+toLocation.lat+","+toLocation.lng;
-  closest.getPopup().setContent(closest.getPopup().getContent()+"<br/><a class='directions' href='"+dirLink+"' target='_blank'>Get Directions</a>");
+  //closest.getPopup().setContent(closest.getPopup().getContent()+"<br/><a class='directions' href='"+dirLink+"' target='_blank'>Get Directions</a>");
   closest.openPopup();
+	//alert($(".leaflet-popup").length);
+	$(".leaflet-popup-content .directions").remove();
+	$(".leaflet-popup-content").append("<div class='directions'><br/><a href='"+dirLink+"' target='_blank'>Get Directions</a></div>");
 }
 function createMap() {
   map = L.map('map').setView([35.81889, -78.64447], 11);
@@ -123,4 +158,9 @@ $(document).ready(function () {
   createMap();
   setAddressSearch();
   getMaterials();
+	$("select").change(function () {
+		if (point) {
+			findNearest(point);
+		}
+	});
 });
