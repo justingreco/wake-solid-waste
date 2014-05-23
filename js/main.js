@@ -108,19 +108,32 @@ function findNearest(latlng) {
   var placeTypes = getPlaceTypes(),
 		distance = 0,
     closest = null,
-		cnt = 0;
-	point = latlng;
+		cnt = 0,
+		tbody = $("table tbody").empty(),
+		distances = [];
+	point = latlng
   $(geojson.getLayers()).each(function(i, l) {
 		if ($.inArray(l.feature.properties.category, placeTypes) > -1) {
-			var coords = L.latLng(l.feature.geometry.coordinates[1], l.feature.geometry.coordinates[0])//l.feature.geometry.coordinates.reverse();
+			var coords = L.latLng(l.feature.geometry.coordinates[1], l.feature.geometry.coordinates[0]),
+				dist = latlng.distanceTo(coords);
+			distances.push(dist);
+			distances.sort(function(a,b) { return a - b;});
+			var idx = distances.indexOf(dist);
+			if ($("tr", tbody).length === 0 || idx >= $("tr", tbody).length ) {
+				tbody.append("<tr><td>"+l.feature.properties.operator+"</td><td>"+l.feature.properties.type+"</td><td>"+l.feature.properties.address+"</td><td>"+Math.round(latlng.distanceTo(coords)/1609.34*10)/10+" miles</td></tr>");
+			}
+			else {
+				$("tr:eq("+idx+")", tbody).before("<tr><td>"+l.feature.properties.operator+"</td><td>"+l.feature.properties.type+"</td><td>"+l.feature.properties.address+"</td><td>"+Math.round(latlng.distanceTo(coords)/1609.34*10)/10+" miles</td></tr>");
+			}
 			if (cnt === 0) {
-				distance = latlng.distanceTo(coords);
+				distance = dist;
 				closest = l;
 			}
-			if (latlng.distanceTo(coords) < distance) {
-				distance = latlng.distanceTo(coords);
+			if (dist < distance) {
+				distance = dist;
 				closest = l;
 			}
+
 			cnt += 1;
 		}
   });
@@ -142,6 +155,7 @@ function createMap() {
     geojson = L.geoJson(data, {
       onEachFeature: function (feature, layer) {
         layer.bindPopup('<strong>'+feature.properties.operator+'</strong><br/>'+feature.properties.type+'<br/>'+feature.properties.address);
+				$("table tbody").append("<tr><td>"+feature.properties.operator+"</td><td>"+feature.properties.type+"</td><td>"+feature.properties.address+"</td><td></td></tr>");
       }
     }).addTo(map);
   });
